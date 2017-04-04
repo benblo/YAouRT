@@ -1,0 +1,43 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+			"name": "YAouRT",
+		},
+		{
+			"path": "../imgui",
+			"name": "ImGui",
+		},
+	],
+	"build_systems":
+	[
+		// docs: http://www.sublimetext.com/docs/3/projects.html
+		// variants: http://docs.sublimetext.info/en/latest/reference/build_systems/configuration.html#variants
+		// ... although the ctrl+B vs ctrl+shift+B behavior described is obsolete, here's the correct one: http://stackoverflow.com/a/29290258/322119
+		{
+			"name": "YAouRT",
+			"shell_cmd": "./run.sh",
+			"variants":
+			[
+				{
+					"name": "Make",
+					"shell_cmd": "make",
+				},
+				{
+					"name": "Clean main",
+					"shell_cmd": "make clean_main",
+				},
+				{
+					"name": "Clean all",
+					"shell_cmd": "make clean",
+				},
+				{
+					"name": "Run",
+					"shell_cmd": "./run.sh",
+				},
+			],
+			"working_dir": "$project_path",
+		},
+	],
+}
