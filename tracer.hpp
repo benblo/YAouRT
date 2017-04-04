@@ -71,7 +71,7 @@ public:
 	Ray()
 	{
 	}
-	
+
 	Vec3f at( f32 dist ) const
 	{
 		return pos + dir * dist;
@@ -106,6 +106,20 @@ public:
 
 		Vec3f hitPos = ray.at(dist);
 		Vec3f hitNormal = getNormal(hitPos);
+
+		Vec3f lightNormal = (lightPos - hitPos).normalized();
+		f32 dot = lightNormal.dot(hitNormal);
+
+		float t = inverseLerp01(-1, 1, dot);
+		pixel = lerp(black, color, t);
+	}
+	void shade( const Vec3f lightPos, const Vec3f hitPos, const Vec3f hitNormal, Color& pixel ) const
+	{
+		if (flat)
+		{
+			pixel = color;
+			return;
+		}
 
 		Vec3f lightNormal = (lightPos - hitPos).normalized();
 		f32 dot = lightNormal.dot(hitNormal);
@@ -199,33 +213,59 @@ public:
 	std::vector<Sphere> spheres;
 	std::vector<Plane> planes;
 
-	Color intersect( const Ray& ray )
+	class Hit
 	{
-		Color pixel;
+	public:
+		Hit()
+			: prim(NULL)
+		{
+		}
 
-		//f32 dist = std::numeric_limits<f32>::max();
-		f32 dist = FLT_MAX;
-		Prim* hitPrim = NULL;
+		Prim* prim;
+		f32 dist;
+		Vec3f pos;
+		Vec3f normal;
+
+		operator bool() const { return prim; }
+	};
+
+	Hit intersect( const Ray& ray, const f32 dist = FLT_MAX )
+	{
+		Hit hit;
+		hit.dist = dist;
 
 		for (u32 i = 0; i < planes.size(); ++i)
 		{
-			if (planes[i].intersect(ray, dist))
+			if (planes[i].intersect(ray, hit.dist))
 			{
-				hitPrim = &planes[i];
+				hit.prim = &planes[i];
 			}
 		}
 
 		for (u32 i = 0; i < spheres.size(); ++i)
 		{
-			if (spheres[i].intersect(ray, dist))
+			if (spheres[i].intersect(ray, hit.dist))
 			{
-				hitPrim = &spheres[i];
+				hit.prim = &spheres[i];
 			}
 		}
 
-		if (hitPrim)
+		if (hit.prim)
 		{
-			hitPrim->shade(lightPos, ray, dist, pixel);
+			hit.pos = ray.at(hit.dist);
+			hit.normal = hit.prim->getNormal(hit.pos);
+		}
+
+		return hit;
+	}
+
+	Color shade( const Ray& ray )
+	{
+		Color pixel;
+
+		if (Hit hit = intersect(ray))
+		{
+			hit.prim->shade(lightPos, hit.pos, hit.normal, pixel);
 		}
 
 		return pixel;
@@ -408,7 +448,7 @@ public:
 
 				ray.dir = (Vec3f(x, y, ray.pos.z + 1) - ray.pos).normalized();
 
-				Color pixel = scene.intersect(ray);
+				Color pixel = scene.shade(ray);
 
 				u32 iPixel = ix + (imageSize.y - 1 - iy) * imageSize.x;
 				RGBA rgba(u8(pixel.r * 255), u8(pixel.g * 255), u8(pixel.b * 255), u8(pixel.a * 255));
