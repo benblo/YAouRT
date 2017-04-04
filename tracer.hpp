@@ -94,8 +94,19 @@ public:
 	{
 	}
 
-	void shade( const Vec3f lightPos, const Vec3f hitPos, const Vec3f hitNormal, Color& pixel ) const
+	virtual Vec3f getNormal( const Vec3f hitPos ) const = 0;
+
+	void shade( const Vec3f lightPos, const Ray& ray, const f32 dist, Color& pixel ) const
 	{
+		if (flat)
+		{
+			pixel = color;
+			return;
+		}
+
+		Vec3f hitPos = ray.at(dist);
+		Vec3f hitNormal = getNormal(hitPos);
+
 		Vec3f lightNormal = (lightPos - hitPos).normalized();
 		f32 dot = lightNormal.dot(hitNormal);
 
@@ -126,17 +137,9 @@ public:
 		return intersect_sphere(dist, ray.dir, ray.pos, pos, radius);
 	}
 
-	void shade( const Vec3f lightPos, const Ray& ray, const f32 dist, Color& pixel ) const
+	virtual Vec3f getNormal( const Vec3f hitPos ) const
 	{
-		if (flat)
-		{
-			pixel = color;
-			return;
-		}
-
-		Vec3f hitPos = ray.at(dist);
-		Vec3f hitNormal = (hitPos - pos).normalized();
-		Prim::shade(lightPos, hitPos, hitNormal, pixel);
+		return (hitPos - pos).normalized();
 	}
 };
 
@@ -177,17 +180,9 @@ public:
 		return normal;
 	}
 
-	void shade( const Vec3f lightPos, const Ray& ray, const f32 dist, Color& pixel ) const
+	virtual Vec3f getNormal( const Vec3f hitPos ) const
 	{
-		if (flat)
-		{
-			pixel = color;
-			return;
-		}
-
-		Vec3f hitPos = ray.at(dist);
-		Vec3f hitNormal = normal();
-		Prim::shade(lightPos, hitPos, hitNormal, pixel);
+		return normal();
 	}
 };
 
@@ -200,25 +195,23 @@ public:
 
 	Vec3f camPos;
 	Vec3f lightPos;
-	
+
 	std::vector<Sphere> spheres;
 	std::vector<Plane> planes;
 
 	Color intersect( const Ray& ray )
 	{
+		Color pixel;
+
 		//f32 dist = std::numeric_limits<f32>::max();
 		f32 dist = FLT_MAX;
+		Prim* hitPrim = NULL;
 
-		bool bestIsSphere = false;
-		bool bestIsPlane = false;
-		u32 bestIndex = 0;
-		
 		for (u32 i = 0; i < planes.size(); ++i)
 		{
 			if (planes[i].intersect(ray, dist))
 			{
-				bestIsPlane = true;
-				bestIndex = i;
+				hitPrim = &planes[i];
 			}
 		}
 
@@ -226,21 +219,13 @@ public:
 		{
 			if (spheres[i].intersect(ray, dist))
 			{
-				bestIsSphere = true;
-				bestIndex = i;
+				hitPrim = &spheres[i];
 			}
 		}
 
-		
-		Color pixel;
-
-		if (bestIsSphere)
+		if (hitPrim)
 		{
-			spheres[bestIndex].shade(lightPos, ray, dist, pixel);
-		}
-		else if (bestIsPlane)
-		{
-			planes[bestIndex].shade(lightPos, ray, dist, pixel);
+			hitPrim->shade(lightPos, ray, dist, pixel);
 		}
 
 		return pixel;
@@ -286,7 +271,7 @@ public:
 				if (ImGui::BeginProperty(label, true))
 				{
 					ImGui::BeginProperty("Pos");
-					changed |= ImGui::DragFloat2("", (float*)&sphere.pos, 0.1f);
+					changed |= ImGui::DragFloat3("", (float*)&sphere.pos, 0.1f);
 					ImGui::NextColumn();
 					ImGui::EndProperty();
 
@@ -393,19 +378,19 @@ public:
 
 	void initScene()
 	{
-		scene.camPos = Vec3f(0, 0, 0);
-		scene.lightPos = Vec3f(2, 10, 2);
+		scene.camPos = Vec3f(0, 0, -6);
+		scene.lightPos = Vec3f(2, 2, 0);
 
 		scene.planes.clear();
-		scene.planes.push_back(Plane(AxisY, -1, white));
-		scene.planes.push_back(Plane(AxisY, +1, white));
-		scene.planes.push_back(Plane(AxisZ, +5, white));
+		scene.planes.push_back(Plane(AxisY, -2, white));
+		scene.planes.push_back(Plane(AxisY, +2, white));
+		scene.planes.push_back(Plane(AxisZ, +2, white));
 		scene.planes.push_back(Plane(AxisX, -2, red));
 		scene.planes.push_back(Plane(AxisX, +2, green));
 
 		scene.spheres.clear();
-		scene.spheres.push_back(Sphere(Vec3f(-1, 0, 5), 1, cyan));
-		scene.spheres.push_back(Sphere(Vec3f(+1, 0, 5), 1, yellow));
+		scene.spheres.push_back(Sphere(Vec3f(-1, -1, -0.5f), 1, cyan));
+		scene.spheres.push_back(Sphere(Vec3f(+1, -1, +0.5f), 1, yellow));
 	}
 
 	void render()
@@ -421,8 +406,8 @@ public:
 			{
 				f32 y = iy * imageSizeInv.y - 0.5f;
 
-				ray.dir = (Vec3f(x, y, 1) - ray.pos).normalized();
-			
+				ray.dir = (Vec3f(x, y, ray.pos.z + 1) - ray.pos).normalized();
+
 				Color pixel = scene.intersect(ray);
 
 				u32 iPixel = ix + (imageSize.y - 1 - iy) * imageSize.x;
