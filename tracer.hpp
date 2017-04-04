@@ -72,6 +72,12 @@ public:
 	{
 	}
 
+	Ray( const Vec3f _pos, const Vec3f _dir )
+		: pos(_pos)
+		, dir(_dir)
+	{
+	}
+
 	Vec3f at( f32 dist ) const
 	{
 		return pos + dir * dist;
@@ -88,7 +94,7 @@ public:
 	{
 	}
 
-	Prim( Color _color )
+	Prim( const Color _color )
 		: color(_color)
 		, flat(false)
 	{
@@ -265,7 +271,23 @@ public:
 
 		if (Hit hit = intersect(ray))
 		{
-			hit.prim->shade(lightPos, hit.pos, hit.normal, pixel);
+			Ray bounce;
+			bounce.pos = hit.pos;
+			bounce.dir = (lightPos - hit.pos).normalized();
+			f32 dist = (lightPos - hit.pos).mag();
+
+			const f32 epsilon = 0.001f;
+			bounce.pos += bounce.dir * epsilon;
+			dist -= epsilon * 2;
+
+			if (intersect(bounce, dist))
+			{
+				pixel = black;
+			}
+			else
+			{
+				hit.prim->shade(lightPos, hit.pos, hit.normal, pixel);
+			}
 		}
 
 		return pixel;
