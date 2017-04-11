@@ -102,12 +102,11 @@ public:
 
 	virtual Vec3f getNormal( const Vec3f hitPos ) const = 0;
 
-	void shade( const Vec3f lightPos, const Ray& ray, const f32 dist, Color& pixel ) const
+	Color shade( const Vec3f lightPos, const Ray& ray, const f32 dist ) const
 	{
 		if (flat)
 		{
-			pixel = color;
-			return;
+			return color;
 		}
 
 		Vec3f hitPos = ray.at(dist);
@@ -117,21 +116,20 @@ public:
 		f32 dot = lightNormal.dot(hitNormal);
 
 		float t = inverseLerp01(-1, 1, dot);
-		pixel = lerp(black, color, t);
+		return lerp(black, color, t);
 	}
-	void shade( const Vec3f lightPos, const Vec3f hitPos, const Vec3f hitNormal, Color& pixel ) const
+	Color shade( const Vec3f lightPos, const Vec3f hitPos, const Vec3f hitNormal ) const
 	{
 		if (flat)
 		{
-			pixel = color;
-			return;
+			return color;
 		}
 
 		Vec3f lightNormal = (lightPos - hitPos).normalized();
 		f32 dot = lightNormal.dot(hitNormal);
 
 		float t = inverseLerp01(-1, 1, dot);
-		pixel = lerp(black, color, t);
+		return lerp(black, color, t);
 	}
 };
 
@@ -286,7 +284,7 @@ public:
 			}
 			else
 			{
-				hit.prim->shade(lightPos, hit.pos, hit.normal, pixel);
+				pixel = hit.prim->shade(lightPos, hit.pos, hit.normal);
 			}
 		}
 
