@@ -87,6 +87,7 @@ public:
 class Prim
 {
 public:
+	const char* name;
 	Color color;
 	bool flat;
 	
@@ -94,8 +95,9 @@ public:
 	{
 	}
 
-	Prim( const Color _color )
-		: color(_color)
+	Prim( const char* _name, const Color _color )
+		: name(_name)
+		, color(_color)
 		, flat(false)
 	{
 	}
@@ -143,8 +145,8 @@ public:
 	{
 	}
 
-	Sphere( Vec3f _pos, f32 _radius, Color _color )
-		: Prim(_color)
+	Sphere( const char* _name, Vec3f _pos, f32 _radius, Color _color )
+		: Prim(_name, _color)
 		, pos(_pos)
 		, radius(_radius)
 	{
@@ -171,8 +173,8 @@ public:
 	{
 	}
 
-	Plane( size_t _axis, f32 _pos, Color _color )
-		: Prim(_color)
+	Plane( const char* _name, size_t _axis, f32 _pos, Color _color )
+		: Prim(_name, _color)
 		, axis(_axis)
 		, pos(_pos)
 	{
@@ -327,8 +329,8 @@ public:
 			{
 				Sphere& sphere = spheres[i];
 
-				char label[32];sprintf(label, "Sphere %d", i);
-				if (ImGui::BeginProperty(label, true))
+				//char label[32];sprintf(label, "Sphere %d", i);
+				if (ImGui::BeginProperty(sphere.name, true))
 				{
 					ImGui::BeginProperty("Pos");
 					changed |= ImGui::DragFloat3("", (float*)&sphere.pos, 0.1f);
@@ -361,8 +363,7 @@ public:
 			{
 				Plane& plane = planes[i];
 
-				char label[32];sprintf(label, "Plane %d", i);
-				if (ImGui::BeginProperty(label, true))
+				if (ImGui::BeginProperty(plane.name, true))
 				{
 					static const char* axes[3] = { "X", "Y", "Z" };
 					ImGui::BeginProperty("Axis");
@@ -438,19 +439,19 @@ public:
 
 	void initScene()
 	{
-		scene.camPos = Vec3f(0, 0, -6);
-		scene.lightPos = Vec3f(2, 2, 0);
+		scene.camPos = Vec3f(0, 3, -8);
+		scene.lightPos = Vec3f(0, 3, 0);
 
 		scene.planes.clear();
-		scene.planes.push_back(Plane(AxisY, -2, white));
-		scene.planes.push_back(Plane(AxisY, +2, white));
-		scene.planes.push_back(Plane(AxisZ, +2, white));
-		scene.planes.push_back(Plane(AxisX, -2, red));
-		scene.planes.push_back(Plane(AxisX, +2, green));
+		scene.planes.push_back(Plane("bottom", AxisY, -0.0001f, white));
+		scene.planes.push_back(Plane("top", AxisY, +6, white));
+		scene.planes.push_back(Plane("back", AxisZ, +4, white));
+		scene.planes.push_back(Plane("left", AxisX, -4, red));
+		scene.planes.push_back(Plane("right", AxisX, +4, green));
 
 		scene.spheres.clear();
-		scene.spheres.push_back(Sphere(Vec3f(-1, -1, -0.5f), 1, cyan));
-		scene.spheres.push_back(Sphere(Vec3f(+1, -1, +0.5f), 1, yellow));
+		scene.spheres.push_back(Sphere("Sphere 0", Vec3f(-1, +1, -0.5f), 1, cyan));
+		scene.spheres.push_back(Sphere("Sphere 1", Vec3f(+1, +1, +0.5f), 1, yellow));
 	}
 
 	void render()
@@ -466,7 +467,7 @@ public:
 			{
 				f32 y = iy * imageSizeInv.y - 0.5f;
 
-				ray.dir = (Vec3f(x, y, ray.pos.z + 1) - ray.pos).normalized();
+				ray.dir = Vec3f(x, y, 1).normalized();
 
 				Color pixel = scene.shade(ray);
 
