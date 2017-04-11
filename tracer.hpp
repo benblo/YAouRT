@@ -210,6 +210,7 @@ class Scene
 {
 public:
 	Scene()
+		: allowShadows(true)
 	{
 	}
 
@@ -265,22 +266,31 @@ public:
 		return hit;
 	}
 
+
+	bool allowShadows;
+
 	Color shade( const Ray& ray )
 	{
 		Color pixel;
 
 		if (Hit hit = intersect(ray))
 		{
-			Ray bounce;
-			bounce.pos = hit.pos;
-			bounce.dir = (lightPos - hit.pos).normalized();
-			f32 dist = (lightPos - hit.pos).mag();
+			bool inShadow = false;
+			if (allowShadows)
+			{
+				Ray bounce;
+				bounce.pos = hit.pos;
+				bounce.dir = (lightPos - hit.pos).normalized();
+				f32 dist = (lightPos - hit.pos).mag();
 
-			const f32 epsilon = 0.001f;
-			bounce.pos += bounce.dir * epsilon;
-			dist -= epsilon * 2;
+				const f32 epsilon = 0.001f;
+				bounce.pos += bounce.dir * epsilon;
+				dist -= epsilon * 2;
 
-			if (intersect(bounce, dist))
+				inShadow = intersect(bounce, dist);
+			}
+
+			if (inShadow)
 			{
 				pixel = black;
 			}
@@ -312,6 +322,11 @@ public:
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2,2));
 		ImGui::Columns(2);
 		ImGui::Separator();
+
+		ImGui::BeginProperty("Shadows");
+		changed |= ImGui::Checkbox("", &allowShadows);
+		ImGui::NextColumn();
+		ImGui::EndProperty();
 
 		ImGui::BeginProperty("Camera");
 		changed |= ImGui::DragFloat3("", (float*)&camPos, 0.1f);
