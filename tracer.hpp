@@ -12,14 +12,13 @@ typedef int i32;
 typedef unsigned int u32;
 typedef unsigned char u8;
 
-/*f32 lerp( f32 from, f32 to, f32 t )
+template<typename T>
+void swap( T& a, T& b )
 {
-	return from + (to - from) * t;
+	T tmp = a;
+	a = b;
+	b = tmp;
 }
-f32 inverseLerp( f32 from, f32 to, f32 value )
-{
-	return (value - from) / (to - from);
-}*/
 
 template<typename T>
 T lerp( T from, T to, f32 t )
@@ -34,13 +33,14 @@ f32 inverseLerp( T from, T to, T value )
 
 f32 clamp( f32 min, f32 max, f32 value )
 {
+	if (min > max) swap(min, max);
 	return value < min ? min : value > max ? max : value;
 }
-f32 lerp01( f32 from, f32 to, f32 t )
+f32 lerpClamped( f32 from, f32 to, f32 t )
 {
 	return lerp(from, to, clamp(0, 1, t));
 }
-f32 inverseLerp01( f32 from, f32 to, f32 value )
+f32 inverseLerpClamped( f32 from, f32 to, f32 value )
 {
 	return inverseLerp(from, to, clamp(from, to, value));
 }
@@ -117,7 +117,7 @@ public:
 		Vec3f lightNormal = (lightPos - hitPos).normalized();
 		f32 dot = lightNormal.dot(hitNormal);
 
-		float t = inverseLerp01(-1, 1, dot);
+		float t = inverseLerpClamped(-1, 1, dot);
 		return lerp(black, color, t);
 	}
 	Color shade( const Vec3f lightPos, const Vec3f hitPos, const Vec3f hitNormal ) const
@@ -130,7 +130,7 @@ public:
 		Vec3f lightNormal = (lightPos - hitPos).normalized();
 		f32 dot = lightNormal.dot(hitNormal);
 
-		float t = inverseLerp01(-1, 1, dot);
+		float t = inverseLerpClamped(-1, 1, dot);
 		return lerp(black, color, t);
 	}
 };
@@ -206,11 +206,20 @@ public:
 	}
 };
 
+enum ShadingModel
+{
+	ShadingModel_Lambert,
+	ShadingModel_LambertWithShadow,
+	ShadingModel_GI,
+};
+static const char* ShadingModelNames[] = { "Lambert", "Lambert with shadows", "GI" };
+
 class Scene
 {
 public:
 	Scene()
-		: allowShadows(true)
+		: shadingModel(ShadingModel_GI)
+		, giMaxDist(1)
 	{
 	}
 
@@ -267,37 +276,74 @@ public:
 	}
 
 
-	bool allowShadows;
+
+	ShadingModel shadingModel;
+	f32 giMaxDist;
+	static const f32 bounceEpsilon = 0.001f;
 
 	Color shade( const Ray& ray )
 	{
+		Hit hit = intersect(ray);
+		if (!hit)
+		{
+			return Color();
+		}
+
+
+		switch (shadingModel)
+		{
+			case ShadingModel_Lambert:
+			case ShadingModel_LambertWithShadow:
+				return shade_lambert(ray, hit, shadingModel == ShadingModel_LambertWithShadow);
+			case ShadingModel_GI:
+				return shade_GI(ray, hit);
+		}
+
+		return magenta;
+	}
+
+	Color shade_lambert( const Ray& ray, const Hit& hit, bool allowShadows )
+	{
 		Color pixel;
 
-		if (Hit hit = intersect(ray))
+		bool inShadow = false;
+		if (allowShadows)
 		{
-			bool inShadow = false;
-			if (allowShadows)
-			{
-				Ray bounce;
-				bounce.pos = hit.pos;
-				bounce.dir = (lightPos - hit.pos).normalized();
-				f32 dist = (lightPos - hit.pos).mag();
+			Ray bounce;
+			bounce.pos = hit.pos;
+			bounce.dir = (lightPos - hit.pos).normalized();
+			f32 dist = (lightPos - hit.pos).mag();
 
-				const f32 epsilon = 0.001f;
-				bounce.pos += bounce.dir * epsilon;
-				dist -= epsilon * 2;
+			bounce.pos += bounce.dir * bounceEpsilon;
+			dist -= bounceEpsilon * 2;
 
-				inShadow = intersect(bounce, dist);
-			}
+			inShadow = intersect(bounce, dist);
+		}
 
-			if (inShadow)
-			{
-				pixel = black;
-			}
-			else
-			{
-				pixel = hit.prim->shade(lightPos, hit.pos, hit.normal);
-			}
+		if (inShadow)
+		{
+			pixel = black;
+		}
+		else
+		{
+			pixel = hit.prim->shade(lightPos, hit.pos, hit.normal);
+		}
+
+		return pixel;
+	}
+
+	Color shade_GI( const Ray& ray, const Hit& hit )
+	{
+		Color pixel = hit.prim->shade(lightPos, hit.pos, hit.normal);
+
+		Ray bounce(hit.pos, hit.normal);
+		bounce.pos += bounce.dir * bounceEpsilon;
+
+		if (Hit bounceHit = intersect(bounce))
+		{
+			f32 t = inverseLerpClamped(giMaxDist, 0, bounceHit.dist);
+			Color rgb = lerp(pixel, bounceHit.prim->color, t);
+			pixel = Color(rgb.r, rgb.g, rgb.b, pixel.a);
 		}
 
 		return pixel;
@@ -324,7 +370,12 @@ public:
 		ImGui::Separator();
 
 		ImGui::BeginProperty("Shadows");
-		changed |= ImGui::Checkbox("", &allowShadows);
+		changed |= ImGui::Combo("", (int*)&shadingModel, ShadingModelNames, 3);
+		ImGui::NextColumn();
+		ImGui::EndProperty();
+
+		ImGui::BeginProperty("GI max dist");
+		changed |= ImGui::DragFloat("", (float*)&giMaxDist, 0.1f);
 		ImGui::NextColumn();
 		ImGui::EndProperty();
 
