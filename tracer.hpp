@@ -284,6 +284,10 @@ public:
 		return hit;
 	}
 
+	Hit giBounce( const Vec3f& pos, const Vec3f& dir )
+	{
+		return intersect(Ray(pos + dir * bounceEpsilon, dir), giMaxDist);
+	}
 
 
 	ShadingModel shadingModel;
@@ -346,10 +350,7 @@ public:
 	{
 		Color pixel = hit.prim->shade(lightPos, hit.pos, hit.normal);
 
-		Ray bounce(hit.pos, _reflect ? reflect(ray.dir, hit.normal) : hit.normal);
-		bounce.pos += bounce.dir * bounceEpsilon;
-
-		if (Hit bounceHit = intersect(bounce))
+		if (Hit bounceHit = giBounce(hit.pos, _reflect ? reflect(ray.dir, hit.normal) : hit.normal))
 		{
 			f32 t = inverseLerpClamped(giMaxDist, 0, bounceHit.dist);
 			Color rgb = lerp(pixel, bounceHit.prim->color, t);
