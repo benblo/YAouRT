@@ -45,6 +45,13 @@ f32 inverseLerpClamped( f32 from, f32 to, f32 value )
 	return inverseLerp(from, to, clamp(from, to, value));
 }
 
+// reflect dir on normal
+// both dir and normal are expected normalized
+Vec3f reflect( const Vec3f& dir, const Vec3f& normal )
+{
+	return dir - normal * (2.f * dir.dot(normal));
+}
+
 
 static const Color black(0, 0, 0, 1);
 static const Color white(1, 1, 1, 1);
@@ -210,15 +217,17 @@ enum ShadingModel
 {
 	ShadingModel_Lambert,
 	ShadingModel_LambertWithShadow,
-	ShadingModel_GI,
+	ShadingModel_GI_normal,
+	ShadingModel_GI_reflect,
 };
-static const char* ShadingModelNames[] = { "Lambert", "Lambert with shadows", "GI" };
+static const char* ShadingModelNames[] = { "Lambert", "Lambert with shadows", "GI (normal)", "GI (reflect)" };
+static const int ShadingModel_Count = sizeof(ShadingModelNames) / sizeof(ShadingModelNames[0]);
 
 class Scene
 {
 public:
 	Scene()
-		: shadingModel(ShadingModel_GI)
+		: shadingModel(ShadingModel_GI_reflect)
 		, giMaxDist(1)
 	{
 	}
@@ -295,8 +304,9 @@ public:
 			case ShadingModel_Lambert:
 			case ShadingModel_LambertWithShadow:
 				return shade_lambert(ray, hit, shadingModel == ShadingModel_LambertWithShadow);
-			case ShadingModel_GI:
-				return shade_GI(ray, hit);
+			case ShadingModel_GI_normal:
+			case ShadingModel_GI_reflect:
+				return shade_GI(ray, hit, shadingModel == ShadingModel_GI_reflect);
 		}
 
 		return magenta;
@@ -332,11 +342,11 @@ public:
 		return pixel;
 	}
 
-	Color shade_GI( const Ray& ray, const Hit& hit )
+	Color shade_GI( const Ray& ray, const Hit& hit, bool _reflect )
 	{
 		Color pixel = hit.prim->shade(lightPos, hit.pos, hit.normal);
 
-		Ray bounce(hit.pos, hit.normal);
+		Ray bounce(hit.pos, _reflect ? reflect(ray.dir, hit.normal) : hit.normal);
 		bounce.pos += bounce.dir * bounceEpsilon;
 
 		if (Hit bounceHit = intersect(bounce))
@@ -370,7 +380,7 @@ public:
 		ImGui::Separator();
 
 		ImGui::BeginProperty("Shadows");
-		changed |= ImGui::Combo("", (int*)&shadingModel, ShadingModelNames, 3);
+		changed |= ImGui::Combo("", (int*)&shadingModel, ShadingModelNames, ShadingModel_Count);
 		ImGui::NextColumn();
 		ImGui::EndProperty();
 
